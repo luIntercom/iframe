@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Intercom Messenger — iFrame</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <style>
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+      }
+    </style>
+
+    <script>
+      // ---- Minimal Intercom boot ----
+      // Replace values as needed (app_id mandatory; JWT optional if you’re securing identity)
+      window.intercomSettings = {
+        api_base: "https://api-iam.intercom.io",
+        app_id: "nzmi3xql"
+        // intercom_user_jwt: "<optional JWT>"
+      };
+
+      (function() {
+        var w = window; var ic = w.Intercom;
+        if (typeof ic === "function") {
+          ic('reattach_activator'); ic('update', w.intercomSettings);
+        } else {
+          var d = document; var i = function() { i.c(arguments); }; i.q = []; i.c = function(args){ i.q.push(args); };
+          w.Intercom = i;
+          var l = function(){
+            var s = d.createElement('script'); s.type = 'text/javascript'; s.async = true;
+            s.src = 'https://widget.intercom.io/widget/nzmi3xql';
+            var x = d.getElementsByTagName('script')[0]; x.parentNode.insertBefore(s, x);
+          };
+          if (document.readyState === 'complete') { l(); }
+          else if (w.attachEvent) { w.attachEvent('onload', l); }
+          else { w.addEventListener('load', l, false); }
+        }
+      })();
+
+      // ---- Report ACTIVE/IDLE to parent ----
+      function postParent(msg) {
+        try { window.parent.postMessage(msg, '*'); } catch (_) {}
+      }
+
+      // When Messenger UI is shown/hidden
+      function setupVisibilityHooks() {
+        if (!window.Intercom) return;
+        try {
+          window.Intercom('onShow', function(){ postParent('ACTIVE'); });
+          window.Intercom('onHide', function(){ postParent('IDLE'); });
+        } catch (e) {
+          // Fallback polling if needed
+          let last = 'IDLE';
+          setInterval(() => {
+            const anyOpen =
+              document.querySelector('[class*="intercom-"] iframe, .intercom-app, .intercom-lightweight-app, .intercom-messenger-frame');
+            const state = anyOpen ? 'ACTIVE' : 'IDLE';
+            if (state !== last) { last = state; postParent(state); }
+          }, 1000);
+        }
+      }
+
+      // ---- Receive commands from parent ----
+      function handleParentMessage(event) {
+        const data = event.data;
+
+        // JSON → update
+        if (typeof data === 'string') {
+          if (data === 'shutdown') {
+            try { window.Intercom('shutdown'); } catch(_) {}
+            return;
+          }
+
+          if (data.startsWith('login:')) {
+            // Example: parent sends "login:<tokenOrUserId>"
+            const tokenOrId = data.slice(6);
+            // Choose one of the following patterns for your app:
+
+            // (A) JWT flow:
+            window.intercomSettings = Object.assign({}, window.intercomSettings, {
+              intercom_user_jwt: tokenOrId
+            });
+            // Ensure a clean session then update/boot
+            try { window.Intercom('shutdown'); } catch(_) {}
+            try { window.Intercom('update', window.intercomSettings); } catch(_) {}
+
+            return;
+          }
+
+          if (data.startsWith('event_')) {
+            const eventName = data.replace(/^event_/, '');
+            try { window.Intercom('trackEvent', eventName); } catch(_) {}
+            return;
+          }
+
+          // Fallback: if it's a plain string that looks like JSON, try parse
+          try {
+            if (data.trim().startsWith('{') || data.trim().startsWith('[')) {
+              const update = JSON.parse(data);
+              try { window.Intercom('update', update); } catch(_) {}
+              return;
+            }
+          } catch(_) {}
+        } else if (typeof data === 'object' && data) {
+          // If parent posted an object directly (rare), treat as update
+          try { window.Intercom('update', data); } catch(_) {}
+          return;
+        }
+      }
+
+      window.addEventListener('message', handleParentMessage, false);
+
+      // Signal readiness to parent once loaded
+      window.addEventListener('load', function() {
+        postParent('IFRAME_READY');
+        // Hook after Intercom loads (give it a moment)
+        setTimeout(setupVisibilityHooks, 800);
+        // Start idle (helps parent set z-index)
+        postParent('IDLE');
+      });
+    </script>
+  </head>
+  <body>
+    <!-- No visible content required; Messenger UI will render itself -->
+  </body>
+</html>
