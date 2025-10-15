@@ -1,25 +1,23 @@
 <!doctype html>
 <html>
   <head>
-    <title>Fin for SFDC</title>
+    <title>Fin for SFDC — Parent</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Defensive: upgrade stray http subresources under your control -->
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
     <script src="https://cdn.tailwindcss.com"></script>
-
     <style>
-      /* iFrame visual and positioning rules */
       #intercom-messenger-iframe {
         position: fixed;
         right: 0;
         bottom: 0;
-        width: 460px;
+        width: 460px;   /* >= 460px for comfort */
         height: 100%;
         border: none;
-        z-index: 5;
-        display: none;
+        z-index: 5;     /* demoted until ACTIVE */
+        display: none;  /* shown on load */
       }
-
       #iframe-active-overlay {
         position: fixed;
         inset: 0;
@@ -28,24 +26,19 @@
         display: none;
       }
     </style>
-
     <script>
-      const USE_IFRAME_MODE = true;
-
-      // --- Cookie/Storage Reset ---
+      // ---------- Parent helpers ----------
       function reset() {
-        const cookies = document.cookie.split(";");
-        for (let cookie of cookies) {
-          const eqPos = cookie.indexOf("=");
-          const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+        document.cookie.split(";").forEach((c) => {
+          const eqPos = c.indexOf("=");
+          const name = eqPos > -1 ? c.substr(0, eqPos) : c;
           document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-        }
+        });
         localStorage.clear();
         sessionStorage.clear();
         location.reload();
       }
 
-      // --- Ticket Form Controls ---
       function toggleForm() {
         document.getElementById("ticketForm").classList.toggle("hidden");
       }
@@ -60,158 +53,120 @@
         console.log({ name, email, subject, message });
         alert("Ticket submitted successfully!");
 
-        if (USE_IFRAME_MODE) {
-          sendEvent(`event_ticket_submitted:${subject}`);
-          sendUpdate({ name, email, last_ticket_subject: subject });
-        }
+        // demo: push to Messenger inside iframe
+        sendEvent(`event_ticket_submitted:${subject}`);
+        sendUpdate({ name, email, last_ticket_subject: subject });
 
-        document.getElementById("ticketForm").reset();
+        e.target.reset();
         toggleForm();
       }
 
-      // --- IFrame Logic (HTTPS Safe) ---
-      const HTTPS_IFRAME_SRC = "https://www.mymessenger.com/messenger_iframe.html";
-
-      function httpsify(url) {
-        try {
-          const u = new URL(url, window.location.href);
-          if (u.protocol === "http:") u.protocol = "https:";
-          u.pathname = u.pathname.replace(/\s+/g, "_");
-          return u.toString();
-        } catch {
-          return url.replace(/^http:/, "https:").replace(/\s+/g, "_");
-        }
-      }
-
-      function initIframe() {
-        const frame = document.getElementById("intercom-messenger-iframe");
-        frame.src = httpsify(HTTPS_IFRAME_SRC);
-        frame.addEventListener("load", () => {
-          frame.style.display = "block";
-          frame.style.zIndex = "5";
-        });
-      }
-
-      // --- Message Handling ---
-      function handleIframeMessage(event) {
-        const msg = String(event.data || "").toUpperCase();
-        const frame = document.getElementById("intercom-messenger-iframe");
-        const overlay = document.getElementById("iframe-active-overlay");
-        if (!frame) return;
-
-        if (msg.includes("ACTIVE")) {
-          frame.style.zIndex = "1000";
-          overlay.style.display = "block";
-        } else if (msg.includes("IDLE")) {
-          frame.style.zIndex = "5";
-          overlay.style.display = "none";
-        }
-      }
-
-      window.addEventListener("message", handleIframeMessage, false);
-
+      // ---------- iFrame comms ----------
       function postToIframe(message) {
         const frame = document.getElementById("intercom-messenger-iframe");
-        if (frame && frame.contentWindow) frame.contentWindow.postMessage(message, "*");
+        if (frame?.contentWindow) frame.contentWindow.postMessage(message, "*");
       }
 
-      function sendUpdate(data) {
-        postToIframe(JSON.stringify(data));
+      // Send a user profile update (must be JSON string)
+      function sendUpdate(obj) {
+        postToIframe(JSON.stringify(obj));
       }
 
-      function sendEvent(eventName) {
-        const safeName = String(eventName || "").replace(/^event_/, "");
-        postToIframe(`event_${safeName}`);
+      // Send an event (prefix with event_)
+      function sendEvent(name) {
+        const safe = String(name || "").replace(/^event_/, "");
+        postToIframe(`event_${safe}`);
       }
 
+      // Log in (your iframe decides what `token` means: JWT, user_id, etc.)
       function loginUser(token) {
         postToIframe(`login:${token}`);
       }
 
+      // Log out
       function logoutUser() {
         postToIframe("shutdown");
       }
 
-      // --- Direct Intercom Widget (Fallback) ---
-      function initIntercomWidgetDirect() {
-        (function () {
-          var w = window; var ic = w.Intercom;
-          if (typeof ic === "function") {
-            ic("reattach_activator"); ic("update", w.intercomSettings);
-          } else {
-            var d = document; var i = function () { i.c(arguments); }; i.q = []; i.c = function (args) { i.q.push(args); };
-            w.Intercom = i;
-            var l = function () {
-              var s = d.createElement("script");
-              s.type = "text/javascript";
-              s.async = true;
-              s.src = "https://widget.intercom.io/widget/nzmi3xql";
-              var x = d.getElementsByTagName("script")[0];
-              x.parentNode.insertBefore(s, x);
-            };
-            if (document.readyState === "complete") l();
-            else if (w.attachEvent) w.attachEvent("onload", l);
-            else w.addEventListener("load", l, false);
-          }
-        })();
+      // Promote/demote iframe when Messenger opens/closes
+      function handleIframeMessage(event) {
+        const msg = String(event.data || "");
+        const frame = document.getElementById("intercom-messenger-iframe");
+        const overlay = document.getElementById("iframe-active-overlay");
+        if (!frame) return;
+
+        if (msg.toUpperCase().includes("ACTIVE")) {
+          frame.style.zIndex = "1000";
+          overlay.style.display = "block";
+        } else if (msg.toUpperCase().includes("IDLE")) {
+          frame.style.zIndex = "5";
+          overlay.style.display = "none";
+        } else if (msg === "IFRAME_READY") {
+          // The iframe is ready—optional place to send initial context
+          // sendUpdate({ plan: "Pro", seats: 10 });
+        }
+      }
+      window.addEventListener("message", handleIframeMessage, false);
+
+      // Initialize iframe (HTTPS ONLY to avoid mixed content)
+      function initIframe() {
+        const frame = document.getElementById("intercom-messenger-iframe");
+        // ✅ Use HTTPS & a real path you control:
+        // Option A: same repo (recommended for quick tests)
+        frame.src = "./messenger_iframe.html";
+        // Option B: another HTTPS origin you control
+        // frame.src = "https://www.mymessenger.com/messenger_iframe.html";
+
+        frame.addEventListener("load", () => {
+          frame.style.display = "block"; // reveal when ready
+          frame.style.zIndex = "5";
+        });
       }
 
-      document.addEventListener("DOMContentLoaded", () => {
-        if (USE_IFRAME_MODE) initIframe();
-        else initIntercomWidgetDirect();
-      });
+      document.addEventListener("DOMContentLoaded", initIframe);
     </script>
   </head>
 
-  <body class="p-6 flex flex-col flex-1 items-center justify-center min-h-screen bg-cover"
-        style="background-image: url('https://downloads.intercomcdn.com/i/o/1051523575/8c16c6bb97ae791131ead20c/blur.jpg')">
-
+  <body class="p-6 flex flex-col items-center justify-center min-h-screen bg-cover"
+        style="background-image:url('https://downloads.intercomcdn.com/i/o/1051523575/8c16c6bb97ae791131ead20c/blur.jpg')">
     <div id="iframe-active-overlay"></div>
 
     <div class="flex flex-col space-y-2 items-center">
       <img src="https://static.intercomassets.com/assets/default-avatars/fin/128-6a5eabbb84cc2b038b2afc6698ca0a974faf7adc9ea9f0fb3c3e78ac12543bc5.png" height="50" width="50" />
-      <button class="bg-black text-white p-2 m-2 rounded hover:bg-opacity-75" onclick="reset()">Reset</button>
-      <button class="bg-blue-600 text-white p-2 m-2 rounded hover:bg-opacity-75" onclick="toggleForm()">Submit Ticket</button>
+      <div class="flex gap-2">
+        <button class="bg-black text-white p-2 rounded" onclick="reset()">Reset</button>
+        <button class="bg-blue-600 text-white p-2 rounded" onclick="toggleForm()">Submit Ticket</button>
+      </div>
 
+      <!-- Demo controls -->
       <div class="flex gap-2 mt-2">
-        <button class="bg-emerald-600 text-white px-3 py-2 rounded" onclick="loginUser('demo-jwt')">Login</button>
+        <button class="bg-emerald-600 text-white px-3 py-2 rounded" onclick="loginUser('demo-jwt-or-id')">Login</button>
         <button class="bg-gray-600 text-white px-3 py-2 rounded" onclick="logoutUser()">Logout</button>
         <button class="bg-indigo-600 text-white px-3 py-2 rounded" onclick="sendEvent('event_demo_clicked')">Send Event</button>
         <button class="bg-teal-600 text-white px-3 py-2 rounded" onclick="sendUpdate({plan:'Pro', seats:25})">Send Update</button>
       </div>
     </div>
 
-    <form id="ticketForm" class="hidden bg-white shadow-md rounded-lg p-6 mt-6 w-80">
+    <!-- Hidden Ticket Form -->
+    <form id="ticketForm" class="hidden bg-white shadow-md rounded-lg p-6 mt-6 w-80" onsubmit="submitTicket(event)">
       <h2 class="text-lg font-semibold mb-4">Submit a Ticket</h2>
       <input id="ticketName" type="text" placeholder="Your Name" class="w-full border rounded p-2 mb-2" required>
       <input id="ticketEmail" type="email" placeholder="Your Email" class="w-full border rounded p-2 mb-2" required>
       <input id="ticketSubject" type="text" placeholder="Subject" class="w-full border rounded p-2 mb-2" required>
       <textarea id="ticketMessage" placeholder="Message" class="w-full border rounded p-2 mb-4" rows="3" required></textarea>
       <div class="flex justify-between">
-        <button class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" onclick="submitTicket(event)">Submit</button>
+        <button class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Submit</button>
         <button type="button" class="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500" onclick="toggleForm()">Cancel</button>
       </div>
     </form>
 
-    <!-- Fixed HTTPS iframe -->
+    <!-- The HTTPS iframe -->
     <iframe
       id="intercom-messenger-iframe"
       title="Intercom Messenger"
       sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-top-navigation-by-user-activation"
+      allow="clipboard-write"
       aria-hidden="true">
     </iframe>
-
-    <script>
-      if (!USE_IFRAME_MODE) {
-        window.intercomSettings = {
-          api_base: "https://api-iam.intercom.io",
-          app_id: "nzmi3xql",
-          intercom_user_jwt: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYXhhODY0IiwiZW1haWwiOiJsdWlzQG1kbHNvbHV0aW9ucy5uZXQiLCJuYW1lIjoiVGVzcyBTdWxsaXZhbiIsImlhdCI6MTc1ODAwNzAzOX0.s9J3RDQq8Og48lMar5cBpDyOgNBVh4Q2YsU6UQM7EP0",
-          hand_off_with_javascript: () => {
-            window.location.href = "./US_SFDC_demo/portal//";
-          },
-        };
-      }
-    </script>
   </body>
 </html>
