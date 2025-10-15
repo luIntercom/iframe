@@ -83,9 +83,9 @@
             // Choose one of the following patterns for your app:
 
             // (A) JWT flow:
-            window.intercomSettings = Object.assign({}, window.intercomSettings, {
-              intercom_user_jwt: tokenOrId
-            });
+            // window.intercomSettings = Object.assign({}, window.intercomSettings, {
+            //  intercom_user_jwt: tokenOrId
+            //});
             // Ensure a clean session then update/boot
             try { window.Intercom('shutdown'); } catch(_) {}
             try { window.Intercom('update', window.intercomSettings); } catch(_) {}
