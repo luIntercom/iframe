@@ -7,7 +7,7 @@ use Firebase\JWT\JWT;
 $userId    = $_GET['uid']   ?? '5068687910815';
 $userEmail = $_GET['email'] ?? 'jd@zendeskdemo.com';
 
-$apiSecret = getenv('INTERCOM_MESSENGER_API_SECRET') ?: '<YOUR_API_SECRET>';
+$apiSecret = getenv('INTERCOM_MESSENGER_API_SECRET') ?: 'Saxzwzo-j2uti4HtYx6PVgoYM4Ds_4OpfW9D0ry7Ujc';
 
 $payload = [
   'user_id' => $userId,
