@@ -239,8 +239,7 @@
           };
         } else if (settings.userType === 'customUser') {
           userData = {
-            //app_id: settings.appId
-            app_id: "z1n0atmw"
+            app_id: settings.appId
           };
           if (settings.customName) userData.name = settings.customName;
           if (settings.customEmail) userData.email = settings.customEmail;
@@ -265,8 +264,7 @@
       function showModal() {
         // Load saved settings
         var savedSettings = Storage.load('settings', {
-          appId: 'z1n0atmw',
-          //appId: '',
+          appId: '',
           userType: 'visitor',
           customName: '',
           customEmail: '',
@@ -384,8 +382,7 @@
         } else if (userType === 'randomUser') {
           var randomName = FakeData.randomName();
           userData = {
-            //app_id: appId,
-            app_id: "z1n0atmw",
+            app_id: appId,
             name: randomName,
             email: FakeData.emailFromName(randomName),
             user_id: FakeData.randomUserId()
@@ -413,8 +410,7 @@
         
         // Save settings
         Storage.save('settings', {
-          //appId: appId,
-          appId: "z1n0atmw",
+          appId: appId,
           userType: userType,
           customName: document.getElementById('userName').value.trim(),
           customEmail: document.getElementById('userEmail').value.trim(),
