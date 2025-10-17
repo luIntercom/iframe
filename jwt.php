@@ -16,3 +16,4 @@ $payload = [
 
 $token = JWT::encode($payload, $apiSecret, 'HS256');
 echo json_encode(['token' => $token]);
+?>
