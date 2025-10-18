@@ -1,52 +1,772 @@
-<!doctype html>
+
+<link rel="stylesheet" href="/assets/application-b8258f1927486a34ec77c23dc2ea07f77b32eac91466419666e964f3567df3c0.css" media="all" />
+<script src="/assets/application-51a3a4829427267b8ece85d4c55ac0eaafb16f7dbcf0be2d162ca237c35d1084.js" media="all"></script>
+
+<!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
-    <title>Fin ZD demo</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fin demo</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body class="p-6 min-h-screen flex items-center justify-center">
-    <button class="bg-black text-white p-2 rounded" id="reset">Reset</button>
+
+    <style>
+      /* Modal styles */
+      .switchet-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 10000;
+        display: none;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      .switchet-modal {
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        max-width: 500px;
+        width: 95%;
+        color: #333;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      
+      .switchet-modal h3 {
+        text-align: center;
+        font-weight: bold;
+        color: #333;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+      
+      .switchet-label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      
+      .switchet-input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+        background-color: #f5f5f5;
+        color: #333;
+        font-family: monospace;
+      }
+      
+      .switchet-radio-group {
+        margin-bottom: 20px;
+      }
+      
+      .switchet-radio-option {
+        margin-bottom: 10px;
+      }
+      
+      .switchet-radio-option input[type="radio"] {
+        margin-right: 8px;
+      }
+      
+      .switchet-radio-option label {
+        cursor: pointer;
+        font-weight: normal;
+      }
+      
+      .custom-attrs {
+        margin-top: 15px;
+        margin-bottom: 15px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #e9ecef;
+      }
+      
+      .attr-input {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      
+      .attr-input input {
+        flex: 1;
+        padding: 4px;
+      }
+      
+      .attr-list {
+        max-height: 150px;
+        overflow-y: auto;
+        margin-top: 10px;
+      }
+      
+      .attr-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 10px;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 5px;
+      }
+      
+      .attr-delete {
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        padding: 2px 8px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      
+      .hidden {
+        display: none !important;
+      }
+      
+      /* Status display */
+      #status-display {
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+      }
+    </style>
 
     <script>
-      document.getElementById('reset').onclick = function reset() {
-        document.cookie.split(";").forEach(c => {
-          const [n] = c.split("=");
-          document.cookie = n + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-        });
-        localStorage.clear(); sessionStorage.clear(); location.reload();
+      // Storage utilities
+      var Storage = {
+        save: function(key, value) {
+          try {
+            localStorage.setItem('switchet_' + key, JSON.stringify(value));
+          } catch(e) {
+            console.warn('Failed to save to localStorage:', e);
+          }
+        },
+        load: function(key, defaultValue) {
+          try {
+            var item = localStorage.getItem('switchet_' + key);
+            return item ? JSON.parse(item) : defaultValue;
+          } catch(e) {
+            console.warn('Failed to load from localStorage:', e);
+            return defaultValue;
+          }
+        }
       };
+      
+      // Fake data generator
+      var FakeData = {
+        firstNames: ['Alice', 'Bob', 'Charlie', 'Diana', 'Eva', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack'],
+        lastNames: ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'],
+        
+        randomName: function() {
+          var firstName = this.firstNames[Math.floor(Math.random() * this.firstNames.length)];
+          var lastName = this.lastNames[Math.floor(Math.random() * this.lastNames.length)];
+          return firstName + ' ' + lastName;
+        },
+        
+        emailFromName: function(name) {
+          return name.toLowerCase().replace(' ', '.') + '@example.com';
+        },
+        
+        randomUserId: function() {
+          return 'user_' + Math.random().toString(36).substr(2, 9);
+        }
+      };
+      
+      // Global state
+      var currentUserData = null;
+      var customAttrs = [];
 
-      async function boot() {
-        // In prod, pull uid/email from your session, not query params.
-        const params = new URLSearchParams(location.search);
-        const uid = params.get('uid') || '5068687910815';
-        const email = params.get('email') || 'jd@zendeskdemo.com';
-
-        const res = await fetch(`/jwt.php?uid=${encodeURIComponent(uid)}&email=${encodeURIComponent(email)}`, {
-          credentials: 'same-origin'
+      
+      // Initialize on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        // Check URL hash for initial parameters
+        const hash = window.location.hash;
+        const appIdMatch = hash.match(/app_id=([^&]+)/);
+        const userIdMatch = hash.match(/user_id=([^&]+)/);
+        const emailMatch = hash.match(/email=([^&]+)/);
+        
+        // Load saved settings
+        var savedSettings = Storage.load('settings', {
+          appId: appIdMatch ? decodeURIComponent(appIdMatch[1]) : '',
+          userType: 'visitor',
+          customName: '',
+          customEmail: emailMatch ? decodeURIComponent(emailMatch[1]) : '',
+          customUserId: userIdMatch ? decodeURIComponent(userIdMatch[1]) : '',
+          customJWT: '',
+          customAttributes: []
         });
-        const { token } = await res.json();
+        
+        // If we have URL params, use them
+        if (appIdMatch) {
+          savedSettings.appId = decodeURIComponent(appIdMatch[1]);
+          if (userIdMatch || emailMatch) {
+            savedSettings.userType = 'customUser';
+            if (userIdMatch) savedSettings.customUserId = decodeURIComponent(userIdMatch[1]);
+            if (emailMatch) savedSettings.customEmail = decodeURIComponent(emailMatch[1]);
+          }
+          Storage.save('settings', savedSettings);
+        }
+        
+        // Initialize with saved settings if we have an app ID
+        if (savedSettings.appId) {
+          initializeFromSettings(savedSettings);
+        }
+        
+        updateStatusDisplay();
+      });
 
-        window.intercomSettings = {
-          api_base: "https://api-iam.intercom.io",
-          app_id: "z1n0atmw",
-          user_id: uid,
-          email,
-          jwt: token
-        };
-
-        (function(){var w=window;var ic=w.Intercom;if(typeof ic==="function"){ic('reattach_activator');ic('update',w.intercomSettings);}else{
-          var d=document;var i=function(){i.c(arguments);};i.q=[];i.c=function(args){i.q.push(args);};w.Intercom=i;
-          var l=function(){var s=d.createElement('script');s.type='text/javascript';s.async=true;s.src='https://widget.intercom.io/widget/z1n0atmw';
-            var x=d.getElementsByTagName('script')[0];x.parentNode.insertBefore(s,x);};
-          if(document.readyState==='complete'){l();}else if(w.attachEvent){w.attachEvent('onload',l);}else{w.addEventListener('load',l,false);}
-        }})();
+      
+      function initializeFromSettings(settings) {
+        var userData = {};
+        
+        if (settings.userType === 'visitor') {
+          userData = {app_id: settings.appId};
+        } else if (settings.userType === 'randomUser') {
+          var randomName = FakeData.randomName();
+          userData = {
+            app_id: settings.appId,
+            name: randomName,
+            email: FakeData.emailFromName(randomName),
+            user_id: FakeData.randomUserId()
+          };
+        } else if (settings.userType === 'customUser') {
+          userData = {
+            app_id: settings.appId
+          };
+          if (settings.customName) userData.name = settings.customName;
+          if (settings.customEmail) userData.email = settings.customEmail;
+          if (settings.customUserId) userData.user_id = settings.customUserId;
+          if (settings.customJWT) userData.intercom_user_jwt = settings.customJWT;
+          
+          // Add custom attributes
+          if (settings.customAttributes && settings.customAttributes.length > 0) {
+            console.log('Loading saved custom attributes:', settings.customAttributes);
+            settings.customAttributes.forEach(function(attr) {
+              userData[attr.name] = attr.value;
+              console.log('Loaded attribute:', attr.name, '=', attr.value);
+            });
+          }
+        }
+        
+        currentUserData = userData;
+        initializeIntercom(userData);
       }
-      boot();
-    </script>
 
-    <script id="ze-snippet" src="https://static.zdassets.com/ekr/snippet.js?key=64e085db-b7a2-4e29-911a-1987b55892bf"></script>
+      
+      function showModal() {
+        // Load saved settings
+        var savedSettings = Storage.load('settings', {
+          appId: '',
+          userType: 'visitor',
+          customName: '',
+          customEmail: '',
+          customUserId: '',
+          customJWT: '',
+          customAttributes: []
+        });
+        
+        customAttrs = savedSettings.customAttributes || [];
+        
+        // Show overlay
+        document.getElementById('switchet-overlay').style.display = 'flex';
+        
+        // Restore form values (with null checks)
+        var appIdEl = document.getElementById('appId');
+        var userNameEl = document.getElementById('userName');
+        var userEmailEl = document.getElementById('userEmail');
+        var userIdEl = document.getElementById('userId');
+        var userJWTEl = document.getElementById('userJWT');
+        
+        if (appIdEl) appIdEl.value = savedSettings.appId;
+        if (userNameEl) userNameEl.value = savedSettings.customName;
+        if (userEmailEl) userEmailEl.value = savedSettings.customEmail;
+        if (userIdEl) userIdEl.value = savedSettings.customUserId;
+        if (userJWTEl) userJWTEl.value = savedSettings.customJWT || '';
+        
+        // Set user type
+        var userTypeRadio = document.querySelector('input[name="userType"][value="' + savedSettings.userType + '"]');
+        if (userTypeRadio) {
+          userTypeRadio.checked = true;
+          toggleCustomFields();
+        }
+        
+        renderAttributes();
+        
+        // Focus first input
+        if (appIdEl) appIdEl.focus();
+      }
+
+      
+      function hideModal() {
+        document.getElementById('switchet-overlay').style.display = 'none';
+      }
+      
+      function toggleCustomFields() {
+        var userType = document.querySelector('input[name="userType"]:checked').value;
+        var customFields = document.getElementById('customUserFields');
+        
+        if (userType === 'customUser') {
+          customFields.classList.remove('hidden');
+        } else {
+          customFields.classList.add('hidden');
+        }
+      }
+      
+      function renderAttributes() {
+        var attrList = document.getElementById('attrList');
+        attrList.innerHTML = '';
+        
+        customAttrs.forEach(function(attr, index) {
+          var attrDiv = document.createElement('div');
+          attrDiv.className = 'attr-item';
+          attrDiv.innerHTML = '<span><strong>' + attr.name + ':</strong> ' + attr.value + '</span>' +
+                              '<button type="button" class="attr-delete" onclick="removeAttribute(' + index + ')">Delete</button>';
+          attrList.appendChild(attrDiv);
+        });
+      }
+
+      
+      function addAttribute() {
+        var nameInput = document.getElementById('attrName');
+        var valueInput = document.getElementById('attrValue');
+        var name = nameInput.value.trim();
+        var value = valueInput.value.trim();
+        
+        if (name && value) {
+          // Try to parse value as number or boolean
+          var parsedValue = value;
+          if (value === 'true') {
+            parsedValue = true;
+          } else if (value === 'false') {
+            parsedValue = false;
+          } else if (!isNaN(value) && value !== '') {
+            parsedValue = Number(value);
+          }
+          
+          customAttrs.push({name: name, value: parsedValue});
+          nameInput.value = '';
+          valueInput.value = '';
+          renderAttributes();
+          console.log('Added attribute to list:', name, '=', parsedValue, '(type:', typeof parsedValue, ')');
+        }
+      }
+      
+      function removeAttribute(index) {
+        customAttrs.splice(index, 1);
+        renderAttributes();
+      }
+      
+      function handleFormSubmit(e) {
+        e.preventDefault();
+        
+        var appId = document.getElementById('appId').value.trim();
+        var userType = document.querySelector('input[name="userType"]:checked').value;
+        
+        if (!appId) {
+          alert('Please enter an App ID');
+          return;
+        }
+        
+        var userData = {};
+        
+        if (userType === 'visitor') {
+          userData = {app_id: appId};
+        } else if (userType === 'randomUser') {
+          var randomName = FakeData.randomName();
+          userData = {
+            app_id: appId,
+            name: randomName,
+            email: FakeData.emailFromName(randomName),
+            user_id: FakeData.randomUserId()
+          };
+        } else if (userType === 'customUser') {
+          userData = {app_id: appId};
+          
+          var userName = document.getElementById('userName').value.trim();
+          var userEmail = document.getElementById('userEmail').value.trim();
+          var userId = document.getElementById('userId').value.trim();
+          var userJWT = document.getElementById('userJWT').value.trim();
+          
+          if (userName) userData.name = userName;
+          if (userEmail) userData.email = userEmail;
+          if (userId) userData.user_id = userId;
+          if (userJWT) userData.intercom_user_jwt = userJWT;
+          
+          // Add custom attributes
+          console.log('Adding custom attributes:', customAttrs);
+          customAttrs.forEach(function(attr) {
+            userData[attr.name] = attr.value;
+            console.log('Added attribute:', attr.name, '=', attr.value);
+          });
+        }
+        
+        // Save settings
+        Storage.save('settings', {
+          appId: appId,
+          userType: userType,
+          customName: document.getElementById('userName').value.trim(),
+          customEmail: document.getElementById('userEmail').value.trim(),
+          customUserId: document.getElementById('userId').value.trim(),
+          customJWT: document.getElementById('userJWT').value.trim(),
+          customAttributes: customAttrs
+        });
+        
+        currentUserData = userData;
+        
+        // Debug: Log the userData to console
+        console.log('Initializing Intercom with userData:', userData);
+        
+        // Hide modal
+        hideModal();
+        
+        // Remove existing widgets and initialize Intercom
+        removeExistingWidgets();
+        initializeIntercom(userData);
+        updateStatusDisplay();
+      }
+      
+      function removeExistingWidgets() {
+        var w = window;
+        var d = document;
+        
+        // Remove existing Intercom widget
+        if (w.Intercom) {
+          try {
+            w.Intercom('shutdown');
+          } catch(e) {
+            console.log('Error shutting down existing Intercom:', e);
+          }
+          delete w.Intercom;
+          delete w.intercomSettings;
+        }
+        
+        // Remove Intercom scripts
+        var intercomScripts = d.querySelectorAll('script[src*="widget.intercom.io"], script[src*="intercom.io"]');
+        intercomScripts.forEach(function(script) {
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+        });
+        
+        // Remove Intercom iframe and elements (but not our modal)
+        var intercomElements = d.querySelectorAll('[id*="intercom"], [class*="intercom"], iframe[src*="intercom"]');
+        intercomElements.forEach(function(element) {
+          // Skip our switchet modal and its children
+          if (element.id && element.id.includes('switchet') || 
+              element.className && element.className.includes('switchet') ||
+              element.closest('.switchet-modal') || 
+              element.closest('#switchet-overlay')) {
+            return;
+          }
+          if (element.parentNode) {
+            element.parentNode.removeChild(element);
+          }
+        });
+        
+        // Clear all Intercom cookies
+        document.cookie.split(";").forEach(function(c) {
+          var eqPos = c.indexOf("=");
+          var name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim();
+          if (name.includes('intercom')) {
+            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + window.location.hostname;
+            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.' + window.location.hostname;
+          }
+        });
+        
+        // Clear localStorage
+        Object.keys(localStorage).forEach(function(key) {
+          if (key.includes('intercom') || key.includes('Intercom')) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        // Clear sessionStorage
+        Object.keys(sessionStorage).forEach(function(key) {
+          if (key.includes('intercom') || key.includes('Intercom')) {
+            sessionStorage.removeItem(key);
+          }
+        });
+      }
+      
+      function initializeIntercom(userData) {
+        var w = window;
+        var d = document;
+        
+        // Set up Intercom settings
+        w.intercomSettings = userData;
+        
+        // Debug: Log final userData being sent to Intercom
+        console.log('Final userData for Intercom boot:', JSON.stringify(userData, null, 2));
+        
+        var ic = w.Intercom;
+        if (typeof ic === "function") {
+          ic('shutdown');
+          ic('boot', userData);
+          // Also call update after a short delay to ensure attributes are set
+          setTimeout(function() {
+            if (window.Intercom) {
+              window.Intercom('update', userData);
+              console.log('Called Intercom update with userData');
+            }
+          }, 500);
+        } else {
+          var i = function() { i.c(arguments); };
+          i.q = [];
+          i.c = function(args) { i.q.push(args); };
+          w.Intercom = i;
+          
+          var s = d.createElement('script');
+          s.type = 'text/javascript';
+          s.async = true;
+          s.src = 'https://widget.intercom.io/widget/' + userData.app_id;
+          var x = d.getElementsByTagName('script')[0];
+          x.parentNode.insertBefore(s, x);
+          
+          // Wait for Intercom to load then boot with full data
+          s.onload = function() {
+            setTimeout(function() {
+              if (window.Intercom) {
+                window.Intercom('boot', userData);
+                console.log('Initial boot completed');
+                // Call update after boot to ensure attributes are set
+                setTimeout(function() {
+                  window.Intercom('update', userData);
+                  console.log('Called update after initial boot');
+                }, 500);
+              }
+            }, 1000);
+          };
+        }
+      }
+      
+      function updateStatusDisplay() {
+        var statusEl = document.getElementById('current-status');
+        if (currentUserData) {
+          var status = 'App ID: ' + currentUserData.app_id;
+          if (currentUserData.user_id) {
+            status += ' | User: ' + currentUserData.user_id;
+          } else {
+            status += ' | Visitor';
+          }
+          if (currentUserData.email) {
+            status += ' | Email: ' + currentUserData.email;
+          }
+          
+          // Show custom attributes
+          var customCount = 0;
+          for (var key in currentUserData) {
+            if (key !== 'app_id' && key !== 'user_id' && 
+                key !== 'email' && key !== 'name') {
+              customCount++;
+            }
+          }
+          if (customCount > 0) {
+            status += ' | ' + customCount + ' custom attr(s)';
+          }
+          
+          statusEl.textContent = status;
+        } else {
+          statusEl.textContent = 'No Intercom session active';
+        }
+      }
+      
+      function reset() {
+        removeExistingWidgets();
+        localStorage.removeItem('switchet_settings');
+        currentUserData = null;
+        updateStatusDisplay();
+      }
+</script>
+
+  </head>
+
+  <body class="p-6 flex flex-col flex-1 items-center justify-center min-h-screen relative overflow-hidden bg-black">
+    <!-- Background video -->
+    <video autoplay muted loop playsinline class="absolute top-0 left-0 w-full h-full object-cover object-top opacity-40 z-[-1]">
+      <source src="https://videos.ctfassets.net/xny2w179f4ki/4qwcJQYYUbB2aQgIoSKu0B/18bb952c143cc39b5934bb21765cf2b4/Fin2_EnergySource_KW_v034_HybridSharpened_wParticles_WEB_10mb.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+
+    <!-- Main content -->
+    <div class="flex flex-col space-y-4 items-center z-10">
+      <h1 class="text-white text-6xl font-bold mb-4">Fin Demo</h1>
+      
+      <div style="margin-top: 200px">
+        <img src="https://downloads.intercomcdn.com/i/o/elv96s5v/1554313732/05429cacf0418df709ab65f36e8f/finai.png" height="50" width="50">
+      </div>
+      
+      <!-- Status display -->
+      <div id="status-display">
+        <p id="current-status" class="text-white text-sm"></p>
+      </div>
+      
+      <!-- Action buttons -->
+      <div class="flex space-x-2">
+        <button onclick="showModal()" type="button" class="bg-blue-600 text-white p-3 rounded hover:bg-blue-700 transition">Switch User</button>
+        <button onclick="reset()" type="button" class="bg-gray-700 text-white p-3 rounded hover:bg-gray-800 transition">Reset All</button>
+      </div>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="switchet-overlay" class="switchet-overlay">
+      <div class="switchet-modal">
+        <h3>Switchet - User Switcher</h3>
+        <form id="switchetForm" onsubmit="handleFormSubmit(event)">
+          <div style="margin-bottom: 15px;">
+            <label class="switchet-label">App ID:</label>
+            <input type="text" id="appId" class="switchet-input" required>
+          </div>
+          
+          <div class="switchet-radio-group">
+            <label class="switchet-label">Demo as:</label>
+            <div class="switchet-radio-option">
+              <input type="radio" id="asVisitor" name="userType" value="visitor" onchange="toggleCustomFields()" checked>
+              <label for="asVisitor">Visitor (anonymous)</label>
+            </div>
+            <div class="switchet-radio-option">
+              <input type="radio" id="asRandomUser" name="userType" value="randomUser" onchange="toggleCustomFields()">
+              <label for="asRandomUser">Random User (fake data)</label>
+            </div>
+            <div class="switchet-radio-option">
+              <input type="radio" id="asCustomUser" name="userType" value="customUser" onchange="toggleCustomFields()">
+              <label for="asCustomUser">Custom User</label>
+            </div>
+          </div>
+          
+          <div id="customUserFields" class="hidden">
+            <div style="margin-bottom: 15px;">
+              <label class="switchet-label">User ID:</label>
+              <input type="text" id="userId" class="switchet-input" placeholder="Optional - e.g., user_123">
+            </div>
+            <div style="margin-bottom: 15px;">
+              <label class="switchet-label">Name:</label>
+              <input type="text" id="userName" class="switchet-input" placeholder="Optional - e.g., John Doe">
+            </div>
+            <div style="margin-bottom: 15px;">
+              <label class="switchet-label">Email:</label>
+              <input type="email" id="userEmail" class="switchet-input" placeholder="Optional - e.g., john@example.com">
+            </div>
+            
+            <div class="custom-attrs">
+              <label class="switchet-label">Custom Attributes:</label>
+              <div class="attr-input">
+                <input type="text" id="attrName" placeholder="Attribute name" class="switchet-input">
+                <input type="text" id="attrValue" placeholder="Attribute value" class="switchet-input">
+                <button type="button" onclick="addAttribute()" class="bg-blue-600 text-white px-4 py-2 rounded">Add</button>
+              </div>
+              <div id="attrList" class="attr-list"></div>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffecd1; border-radius: 4px;">
+              <label class="switchet-label">Identity Verification (Optional):</label>
+              <input type="text" id="userJWT" class="switchet-input" placeholder="JWT token (if workspace requires it)" style="margin-top: 5px;">
+              <p style="font-size: 12px; color: #856404; margin-top: 5px;">If you're getting 403 errors, your workspace might require Identity Verification. Enter the JWT token here.</p>
+              <p style="font-size: 12px; color: #495057; margin-top: 10px;"><strong>Testing Tip:</strong> Try adding attributes like: plan=premium, company=TestCorp, active=true, age=25</p>
+            </div>
+          </div>
+          
+          <div style="text-align: right; margin-top: 20px;">
+            <button type="button" onclick="hideModal()" class="bg-gray-500 text-white px-4 py-2 rounded mr-2">Cancel</button>
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Load</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Help button -->
+    <button class="tooltip-button" onclick="toggleAccordion()">Need Help?</button>
+
+<!-- Accordion Container -->
+  <div class="tooltip-container">
+    <div class="tooltip">?</div>
+    <div class="accordion-panel" id="accordionPanel">
+    <span class="close-btn" onclick="toggleAccordion()">×</span>
+      <div class="accordion-content">
+      <h1>Fin Not Appearing?</h1>
+      </br>
+        <h2>Enable The Messenger</h2>
+        <p>Enable the connection to the messenger <a href="https://app.intercom.com/a/apps/_/standalone/deploy/intercom-messenger/install" target="_blank">here.</a></p>
+        <img src="https://downloads.intercomcdn.com/i/o/elv96s5v/1512129521/a82bc5fd3335b43e66a40e746205/gif.gif" alt="GIF 1" onclick="openModal(this.src)">
+        </br>
+        <h2>Set Fin Live</h2>
+        <p>Set Fin live! <a href="https://app.intercom.com/a/apps/_/standalone/deploy/intercom-messenger/install" target="_blank">here.</a></p>
+        <img src="https://downloads.intercomcdn.com/i/o/elv96s5v/1512129793/b92e22a09a55bc3fb1b979cf2f4e/gif2.gif" alt="GIF 2" onclick="openModal(this.src)">
+        </br>
+        <h2>Other Requirements</h2>
+        <ul>
+          <li><p>You need to have added some content for Fin to use. You can do that <a href="https://app.intercom.com/a/apps/_/knowledge-hub/overview" target="_blank">here.</a></p></li>
+          <li><p>If you changed the app_id, you may need to <a href="#" onclick="location.reload(); return false;">Reload The Page</a></p></li>
+          <li><p>Have an EU Workspace? <a href="https://demolab.corporate.intercom.io/pages/switchet-eu#app_id=">Go here.</a></p></li>
+        </ul>
+        </br>
+        <h2>User Switching</h2>
+        <p>Click the "Switch User" button to open a modal where you can:</p>
+        <ul>
+          <li>Switch between visitor, random user, or custom user modes</li>
+          <li>Specify exact user_id and email for testing</li>
+          <li>Add custom attributes to the user</li>
+          <li>Provide JWT token for Identity Verification</li>
+        </ul>
+        <p>The tool will properly shutdown any existing Intercom session and initialize a new one with your specified settings.</p>
+        </br>
+        <h2>Getting 403 Errors?</h2>
+        <p>If you're getting 403 Forbidden errors, your workspace likely requires <strong>Identity Verification</strong>. You'll need to:</p>
+        <ol>
+          <li>Generate a JWT token on your server using your workspace's Identity Verification secret</li>
+          <li>Enter the JWT token in the "Identity Verification" field when switching users</li>
+          <li>Make sure the user_hash in the JWT matches the user_id you're using</li>
+        </ol>
+        <p>Learn more about <a href="https://www.intercom.com/help/en/articles/183-enable-identity-verification-for-web-and-mobile" target="_blank">Identity Verification</a></p>
+        </br>
+        <h2>URL Parameters (Legacy)</h2>
+        <p>You can still use URL hash parameters for initial setup:</p>
+        <ul>
+          <li><strong>app_id</strong>: Your Intercom app ID</li>
+          <li><strong>user_id</strong>: User identifier</li>
+          <li><strong>email</strong>: User email address</li>
+        </ul>
+        <p>Example: <code style="font-size: 11px; background: #333; padding: 2px 4px; border-radius: 3px;">#app_id=abc123&user_id=user456&email=test@example.com</code></p>
+        </br>
+        </br>
+      </div>
+    </div>
+  </div>
+  <!-- Accordion Container End-->
+
+  <!-- Help Modals Overlay -->
+  <div class="modal" id="gifModal" onclick="closeModal()">
+    <img id="modalImg" src="" alt="Full GIF" />
+  </div>
+
+
+<!-- Help Modals Scripts -->
+<script>
+    function toggleAccordion() {
+      const panel = document.getElementById('accordionPanel');
+      panel.classList.toggle('open');
+    }
+
+    function openModal(src) {
+      const modal = document.getElementById('gifModal');
+      const modalImg = document.getElementById('modalImg');
+      modalImg.src = src;
+      modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('gifModal').style.display = 'none';
+    }
+  </script>
+<!-- Help Modals Overlay End -->
+
   </body>
 </html>
